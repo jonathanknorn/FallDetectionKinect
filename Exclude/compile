@@ -1,1 +1,0 @@
- g++-4.7 hello.cpp -o  hello -I /usr/local/include/opencv -L/opt/vc/lib -lmmal -lmmal_core -lmmal_util -lopencv_core -lopencv_highgui
