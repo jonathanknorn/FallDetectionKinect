@@ -1,28 +1,34 @@
 # Define the compiler and the linker. The linker must be defined since
 # the implicit rule for linking uses CC as the linker. g++ can be
 # changed to clang++.
-CXX = g++-4.7
-CC  = g++-4.7
+CXX = g++ 
+CC  = g++
 
 # Define preprocessor, compiler, and linker flags. Uncomment the # lines
 # if you use clang++ and wish to use libc++ instead of GNU's libstdc++.
-# -g is for debugging.
-CPPFLAGS =  -std=c++11
-CXXFLAGS =  -O2 -Wall -Wextra -pedantic-errors -Wold-style-cast 
-#CXXFLAGS = -std=c++11 -I /usr/local/include/opencv -L/opt/vc/lib -lmmal -lmmal_core -lmmal_util -lopencv_core -lopencv_highgui
-#CXXFLAGS += -g
-LDFLAGS =   -g -std=c++11 -I /usr/local/include/opencv -L/usr/local/lib -lopencv_nonfree -lopencv_objdetect -lopencv_features2d -lopencv_imgproc -lopencv_highgui -lopencv_core -lopencv_video
-#CPPFLAGS += -stdlib=libc++
+CXXFLAGS =  -g -O2 -Wall -W -pedantic-errors
+CXXFLAGS += -Wmissing-braces -Wparentheses -Wold-style-cast 
+CXXFLAGS += -std=c++11
+CXXFLAGS += -L/opt/vc/lib
+CXXFLAGS += -lm -lmmal -lmmal_core  -lmmal_util
+CXXFLAGS += -lopencv_core -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_nonfree -lopencv_objdetect -lopencv_video
+LDFLAGS =   -g 
+#CPPFLAGS =  -stdlib=libc++
 #CXXFLAGS += -stdlib=libc++
 #LDFLAGS +=  -stdlib=libc++
 
 # Targets
-PROGS = BackgroundSubtraction
+PROGS = main background_subtraction
 
 all: $(PROGS)
 
 # Targets rely on implicit rules for compiling and linking
-BackgroundSubtraction: BackgroundSubtraction.o
+main: floor_detector.o main.o visualizer.o
+	$(CXX) $(CXXFLAGS) floor_detector.o main.o visualizer.o -o main
+
+background_subtraction: background_subtraction.o
+	$(CXX) $(CXXFLAGS) background_subtraction.o -o background_subtraction
+
 
 # Phony targets
 .PHONY: all clean
