@@ -114,4 +114,35 @@ std::vector<std::pair<cv::Point,cv::Point>> FloorDetector::get_lines(cv::Mat m){
 		lines2.push_back({pt1,pt2});
 	}
 	return lines2;
-}	  
+}
+
+bool FloorDetector::angle_is_greater_than(cv::Point p1,cv::Point p2, float limit){
+    float alpha ;
+    float delta_x = static_cast<float>(p2.x -p1.x);
+    float delta_y = static_cast<float>(p2.y - p1.y);
+
+    bool draw = false;
+    alpha = 0;
+    float min =limit * M_PI/180.0;
+    float max = M_PI_2 - min;
+    
+    
+    
+    if(delta_x != 0){
+        alpha = atanf(delta_y/delta_x);
+        
+    }
+    
+    float fmodded = fmod(alpha,M_PI_2);
+    
+    
+    if(   (fmodded> min && fmodded < max) || (-fmodded> min && -fmodded < max)){
+        
+        draw = true;
+        return draw;
+        
+    }
+    return draw;
+}
+
+

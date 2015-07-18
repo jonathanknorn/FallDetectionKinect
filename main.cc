@@ -29,7 +29,11 @@ int main()
 		for(auto it = vec.begin(); it != vec.end(); ++it){
 			Point pt1 = (*it).first;
 			Point pt2 = (*it).second;
-			line(ca, pt1, pt2, Scalar(0,0,255), 3, CV_AA);
+            if(f.angle_is_greater_than(pt1, pt2, 10.0)){
+                line(ca, pt1, pt2, Scalar(0,0,255), 3, CV_AA);
+            } else {
+				line(ca, pt1, pt2, Scalar(0,255,0), 3, CV_AA);
+			}
 		}
 	
 		Visualizer::show_mat("Disparity", ca);

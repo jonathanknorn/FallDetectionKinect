@@ -14,6 +14,8 @@ class FloorDetector{
 		cv::Mat normalize(cv::Mat m);
 		cv::Mat canny(cv::Mat m);
 		std::vector<std::pair<cv::Point,cv::Point>> get_lines(cv::Mat m);
+        bool angle_is_greater_than(cv::Point p1,cv::Point p2, float limit);
+    
 	private:
 		std::vector<double> dist;
 		std::vector<double> red;
