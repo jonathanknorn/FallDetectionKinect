@@ -9,18 +9,21 @@
 class FloorDetector{
 	public:
 		FloorDetector();
-		cv::Mat calc_v_disparity(cv::Mat m);
-		cv::Mat color(cv::Mat m);
-		cv::Mat normalize(cv::Mat m);
-		cv::Mat canny(cv::Mat m);
-		std::vector<std::pair<cv::Point,cv::Point>> get_lines(cv::Mat m);
-        bool angle_is_greater_than(cv::Point p1,cv::Point p2, float limit);
-    
+		cv::Mat calc_v_disparity(cv::Mat &);
+		void enhance(cv::Mat&, int);
+		void color(cv::Mat &);
+		void normalize(cv::Mat &);
+		std::vector<std::pair<cv::Point,cv::Point>> get_lines(const cv::Mat &);
+        bool angle_is_greater_than(const cv::Point &,const cv::Point &, float);
+        int m;
+        float k;
 	private:
 		std::vector<double> dist;
 		std::vector<double> red;
 		std::vector<double> green;
 		std::vector<double> blue;
 		std::vector<double> normal;
+		std::vector<int> disp;
+		std::vector<int> disp_norm;
 };
 #endif

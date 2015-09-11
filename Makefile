@@ -2,8 +2,8 @@
 # the implicit rule for linking uses CC as the linker. g++ can be
 # changed to clang++.
 
-CXX = g++ 
-CC  = g++
+CXX = g++-4.7 -std=c++11
+CC  = g++-4.7 -std=c++11
 
 # Define preprocessor, compiler, and linker flags. Uncomment the # lines
 # if you use clang++ and wish to use libc++ instead of GNU's libstdc++.
@@ -35,7 +35,7 @@ background_subtraction: background_subtraction.o
 
 # Standard clean
 clean:
-	rm -f *.o $(PROGS)
+	rm -f *.o *.d $(PROGS)
 
 # Generate dependencies in *.d files
 %.d: %.cc
