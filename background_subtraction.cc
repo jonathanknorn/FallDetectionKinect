@@ -1,3 +1,4 @@
+#include "floor_detector.h"
 #include<opencv2/opencv.hpp>
 #include<iostream>
 #include<vector>
@@ -8,15 +9,15 @@
 #include <opencv2/video/background_segm.hpp>
 
 using namespace cv;
-
+using namespace std;
 //int main(int argc, char *argv[])
 int main()
 {
-	
+
 	vector<double> red;
 	vector<double> green;
 	vector<double> blue;
-	
+
 	for(int i = 0; i < 256; ++i){ //Pre calculate colors for depth-coloring
 		red.push_back(sin((i-50)*0.05 + 0) * 127 + 128);
 		green.push_back(sin((i-50)*0.05 + 2) * 127 + 128);
@@ -28,70 +29,70 @@ int main()
     Mat back;		//Background mask
     Mat resizeF;	//Resized original frame
     Mat masked;		//Original frame masked by foreground frame
-    
-    //cap.set(CV_CAP_PROP_FRAME_WIDTH, 640); //Might be necessary to force kinect to use IR-sensor
-	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 488);
-   
-    
-    const int nmixtures =7;		//Set up background subtractor
-    const bool bShadowDetection = true;
-    const int history = 1;
+
+    FloorDetector f;
+
+    const int nmixtures =5;		//Set up background subtractor
+    const bool bShadowDetection = false;
+    const int history = 200;
     BackgroundSubtractorMOG2 bg (history,nmixtures,bShadowDetection);
-	bg.set("backgroundRatio",0.01);
-	
-	
+	bg.set("backgroundRatio",0.7);
+
     namedWindow("Frame"); //Initialize frames
-	namedWindow("Fore");
 	namedWindow("Background");
 	namedWindow("Masked");
-	
-	
+	namedWindow("Double dilated");
+
+    vector<vector<Point>> contours;
+
     VideoCapture cap(0); //Initialize camera
 
-    for(int f = 0;true;++f) //Main loop, f is for periodical updates, e.g. for every 15th frame: if(f %15 == 0)
+    for(int ff = 0;true;++ff) //Main loop, f is for periodical updates, e.g. for every 15th frame: if(f %15 == 0)
     {
         cap >> frame; //Save current frame and reduce it's size to 1/4th
-        resize(frame, resizeF, Size(frame.size().width/4, frame.size().height/4) );
-		
-		bg.operator ()(resizeF,fore, 0.00); //Add frame to background subtractor to get foreground mask
-		bg.getBackgroundImage(back);		//Get background frame for visualisation
+        resize(frame, frame, Size(frame.size().width/2, frame.size().height/2) );
+        f.normalize(frame);
 
-		
-		/**
-		minMaxLoc(frame, &minVal, &maxVal); 
-		std::cout << "Min: " << minVal << "\nMax: " << maxVal<<"\n";
-		**/
-		
+		if(ff < 50){
+		    bg.operator ()(frame,fore,0.02); //Add frame to background subtractor to get foreground mask
+		    cout << "Adding background" << endl;
+		    bg.getBackgroundImage(back);		//Get background frame for visualisation
+		    f.normalize(back);
+            imshow("Background",back);      //Background
+        } else {
+            if (ff % 100 == 0){
+                bg.operator ()(frame,fore,0.02); //Add frame to background subtractor to get foreground mask
+            } else {
+                bg.operator ()(frame,fore,0.000); //Get mask, without
+            }
 
-		double depth;
-		for (int i = 0; i < resizeF.rows; ++i) //For each row
-		{
-			uchar* pixel = resizeF.ptr<uchar>(i);  // Pointer to first pixel in row
-			for (int j = 0; j < resizeF.cols; ++j) //For each col
-			{
-				depth = *pixel;  	//Get first color in pixel (All colors are the same since kinect gives a greyscale depth output
-				if(i == resizeF.rows/2 && j == resizeF.cols/2){
-					std::cout << "Mid:" << depth << "\n"; //Cout mid point depth
-				}
-						
-				*pixel++ = blue[depth]; //Get pre calculated color for each pixel in frame
-				*pixel++ = green[depth];
-				*pixel++ = red[depth];
-            
-				
-			}
-		}
-		
-		masked = Mat::zeros( resizeF.rows, resizeF.cols, CV_8UC3 ); //Create black frame for mask
-		resizeF.copyTo(masked, fore); //Apply foreground mask to original frame and copy to masked
-    
-		imshow("Frame",resizeF); //Present frames
-		imshow("Fore",fore);
-		imshow("Background",back);	
-		imshow("Masked",masked);	
-		
+            bg.getBackgroundImage(back);		                                //Get background frame for visualisation
+            f.color(frame);
+
+            Mat ffore = fore.clone();
+            cv::erode(ffore,ffore,cv::Mat());                                   //Erode and dilate twice to eliminate noise, should be possible to do once with better settings
+            cv::erode(ffore,ffore,cv::Mat());
+            cv::dilate(ffore,ffore,cv::Mat());
+            cv::dilate(ffore,ffore,cv::Mat());
+            masked = Mat::zeros( frame.rows, frame.cols, CV_8UC3 );             //Create empty frame for mask
+            frame.copyTo(masked, ffore);                                        //Apply mask to original frame and copy to masked
+
+            findContours(ffore,contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE); //Find contours
+            for(auto &v : contours){                                            //Mark larger objects with rectangles in original frame
+                cout << v.size() << endl;
+                if(v.size()>150){
+                    Rect brect = boundingRect(Mat(v).reshape(2));
+                    rectangle(frame, brect.tl(), brect.br(), Scalar(0,0,255),2,CV_AA);
+                }
+            }
+            cout << endl << endl;
+            f.color(back);                  //Color background for better visualization
+            imshow("Frame",frame);          //Original frame
+            imshow("Original mask",fore);   //Original mask
+            imshow("Background",back);      //Background
+            imshow("Masked",masked);        //Masked frame
+        }
 		if(waitKey(30) >= 0) break;
-		
 	}
     return 0;
 }

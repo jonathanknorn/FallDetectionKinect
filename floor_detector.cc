@@ -158,3 +158,55 @@ void FloorDetector::mark_lines(cv::Mat &mat, std::vector<std::pair<cv::Point,cv:
     Point pt2 = floor_line.second;
     line(mat, pt1, pt2, Scalar(255,0,0), 1, CV_AA);        //Mark the detected floor line blue
 }
+
+void FloorDetector::reduce(cv::Mat &mat){
+    vector<int> count(1, 0);
+    uchar* origin = mat.ptr<uchar>(0);
+    int counter = 0;
+    for (int i = 0; i < mat.rows; ++i)
+	{
+		for (int j = 0; j < mat.cols; ++j)
+		{
+			uchar* above;
+			uchar* left;
+			if(i == 0){
+                *above = 0;
+			} else {
+                above = origin + mat.rows * i + j - 1;
+			}
+			if(j == 0){
+                *left = 0;
+			} else {
+                left = origin + mat.rows * i + j - 1;
+			}
+			uchar* pixel = origin + mat.rows * i + j;
+            if(*pixel != 0){
+                if(*above != 0){
+                    *pixel = *above;
+                    if(*left != 0){
+                        //mark ab & left = same
+                    }
+                } else if (*left != 0){
+                    *pixel = *left;
+                } else {
+                    *pixel = ++counter;
+//                    count.push_back(0);
+                }
+//                ++count[*pixel];
+            }
+		}
+    }
+//    for (int i = 0; i < mat.rows; ++i)
+//	{
+//		for (int j = 0; j < mat.cols; ++j)
+//		{
+//            uchar* pixel = origin + mat.rows * i + j;
+////            if(count[*pixel] > 0){
+////                *pixel = 255;
+////            } else {
+////                *pixel = 0;
+////            }
+//		}
+//	}
+    cout << "Count: " << counter << endl;
+}

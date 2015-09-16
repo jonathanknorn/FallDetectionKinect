@@ -12,6 +12,7 @@ class FloorDetector{
 		void normalize(cv::Mat &);
 		std::vector<std::pair<cv::Point,cv::Point>> get_lines(const cv::Mat &);
 		void mark_lines(cv::Mat &, std::vector<std::pair<cv::Point,cv::Point>> &);
+		void reduce(cv::Mat &);
         int m;
         float k;
 	private:
