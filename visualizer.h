@@ -1,5 +1,6 @@
 #ifndef VISUALIZER_H
 #define VISUALIZER_H
+
 #include<opencv2/opencv.hpp>
 
 class Visualizer{

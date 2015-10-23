@@ -2,8 +2,8 @@
 # the implicit rule for linking uses CC as the linker. g++ can be
 # changed to clang++.
 
-CXX = g++-4.7 -std=c++11
-CC  = g++-4.7 -std=c++11
+CXX = g++-4.9 -std=c++11
+CC  = g++-4.9 -std=c++11
 
 # Define preprocessor, compiler, and linker flags. Uncomment the # lines
 # if you use clang++ and wish to use libc++ instead of GNU's libstdc++.
@@ -12,14 +12,14 @@ CXXFLAGS += -Wmissing-braces -Wparentheses -Wold-style-cast
 CXXFLAGS += -std=c++11
 CXXFLAGS += -L/opt/vc/lib
 CXXFLAGS += -lm -lmmal -lmmal_core  -lmmal_util
-CXXFLAGS += -lopencv_core -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_nonfree -lopencv_objdetect -lopencv_video
+CXXFLAGS += -lopencv_core -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_nonfree -lopencv_objdetect -lopencv_video -pthread
 LDFLAGS =   -g 
 #CPPFLAGS =  -stdlib=libc++
 #CXXFLAGS += -stdlib=libc++
 #LDFLAGS +=  -stdlib=libc++
 
 # Targets
-PROGS = main background_subtraction 
+PROGS = main background_subtraction
 
 all: $(PROGS)
 

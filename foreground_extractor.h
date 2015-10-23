@@ -10,6 +10,7 @@ class ForegroundExtractor{
         void get_background_image(cv::Mat&);
         void erode(cv::Mat&);
         void dilate(cv::Mat&);
+        int average_depth(cv::Mat&, cv::Rect&, float);
 	private:
         cv::BackgroundSubtractorMOG2 bg;
 };
