@@ -1,79 +1,98 @@
 #include "floor_detector.h"
+#include "utilities.h"
 
 using namespace std;
 using namespace cv;
 
 FloorDetector::FloorDetector() {
-    float a = 3.674;
-    float b = 8227.0;
-    float c = 271.6;
-    float ratio = 1.960784;
+
+    //RGB values for coloring the depth image
 	for(int i = 0; i < 256; ++i){
-		red.push_back(sin((i-50)*0.05 + 0) * 127 + 128);                                        //RGB values for coloring the depth image
+		red.push_back(sin((i-50)*0.05 + 0) * 127 + 128);
 		green.push_back(sin((i-50)*0.05 + 2) * 127 + 128);
 		blue.push_back(sin((i-50)*0.05 + 4) * 127 + 128);
-
-        //Precalculations related to the normalization
-        dist.push_back(static_cast<int>(a-b/(i-c)));                                         //Distance in cm for not normalized depth value
-		inv_dist.push_back(static_cast<int>(c-b/(i*ratio-a)));//                             //Distance in cm for normalized depth value
-		normal.push_back((dist[i]/ratio)+0.5);                                               //Normalized depth(Distance in cm divided by 500/256
-
-		//Start values for k and m,
-		k = 0;
-		m = 0;
 	}
 }
 
-void FloorDetector::color(cv::Mat &mat)
-{
-	uchar* mPixel;
-	double depth;
+//Returns the theoretical y-value of the floor at the given depth.
+int FloorDetector::floorline_at_depth(int d){
+    int floor = static_cast<int>(static_cast<float>(Utilities::reversed_normalization(d))*k) + m;
+    return floor;
+}
 
-	for (int i = 0; i < mat.rows; ++i)
-	{
-		mPixel = mat.ptr<uchar>(i);
-		for (int j = 0; j < mat.cols; ++j)
-		{
-			depth = *mPixel;
-            float floor_line = ((static_cast<float>(i) - m) / k);                               //Calculates the theoretical value of the floor from the k- and m-values
-            float floor = inv_dist[depth];                                                      //Converts the normalized depth to non-normalized (since the floor calculations are done before normalizing)
+//Normalizes the depth values
+void FloorDetector::normalize(cv::Mat &mat){
+    uchar* mPixel;
+    double depth;
+    for (int i = 0; i < mat.rows; ++i){
+        mPixel = mat.ptr<uchar>(i);
+        for (int j = 0; j < mat.cols; ++j){
+            depth = Utilities::normalize(*mPixel);
+            *mPixel++ = depth;
+            *mPixel++ = depth;
+            *mPixel++ = depth;
+        }
+    }
+}
 
-            int diff = static_cast<int>(floor_line) - static_cast<int>(floor);                  //Difference between actual end theoretical value
-            if(abs(diff) <= 1 && depth < 255){                                                  //If the difference is 1 or less, the pixel is marked as on the floor
+//Colors the mat, diferent depths are given different colors
+//if color_floor is true, the floor plane is colored white
+void FloorDetector::color(cv::Mat &mat, bool color_floor){
+    uchar* mPixel;
+    double depth;
+    for (int i = 0; i < mat.rows; ++i)
+    {
+        mPixel = mat.ptr<uchar>(i);
+        float floor = (static_cast<float>(i) - m)/k;
+        for (int j = 0; j < mat.cols; ++j)
+        {
+            depth = *mPixel;
+            if(color_floor && abs(Utilities::reversed_normalization(static_cast<int>(depth)) - floor) < 1){
                 *mPixel++ = 255;
                 *mPixel++ = 255;
                 *mPixel++ = 255;
-			} else {                                                                            //Else, it's just depth-colored
+            } else {
                 *mPixel++ = blue[depth];
                 *mPixel++ = green[depth];
                 *mPixel++ = red[depth];
             }
-		}
-	}
+        }
+    }
 }
 
-int FloorDetector::floorline_at_depth(int d){                                                   //Returns the theoretical y-value of the floor at the given depth.
-    int floor = static_cast<int>(static_cast<float>(inv_dist[d])*k) + m;
-    return floor;
-}
-
-void FloorDetector::normalize(cv::Mat &mat)                                                     //Normalizes the depth values to a linear scale (pixel value * 1.960784 is distance in cm)
+//Same as normalize, with the difference that the depth values are transformed to take the cameras angle in account
+void FloorDetector::coordinate(cv::Mat &mat)
 {
-	uchar* mPixel;
-	double depth;
-	for (int i = 0; i < mat.rows; ++i)
-	{
-		mPixel = mat.ptr<uchar>(i);
-		for (int j = 0; j < mat.cols*3; ++j)
-		{
-		    depth = *mPixel;
-			*mPixel++ = normal[depth];
-		}
+    uchar* mPixel;
+    double depth;
+    for (int i = 0; i < mat.rows; ++i)
+    {
+        mPixel = mat.ptr<uchar>(i);
+        for (int j = 0; j < mat.cols; ++j)
+        {
+            depth = *mPixel;
+            double z = Utilities::distance(depth);
+            double bh = Utilities::TAN224 * static_cast<double>(z);
+            double y = -2*bh*(i-static_cast<double>(mat.rows/2))/mat.rows;
+            int ry = static_cast<int>(cos_x * y - sin_x * z);
+            int rz = static_cast<int>(sin_x * y + cos_x * z);
+            if(abs(ry - h) <= 1){
+                *mPixel++ = 255;
+                *mPixel++ = 255;
+                *mPixel++ = 255;
+            } else {
+                uchar value = static_cast<uchar>(rz/2);
+                *mPixel++ = blue[value];
+                *mPixel++ = green[value];
+                *mPixel++ = red[value];
+            }
+        }
 
-	}
+    }
 }
 
-cv::Mat FloorDetector::calc_v_histogram(cv::Mat &mat){                                          //Returns a vertical histogram (one histogram for each row) for the given frame
+//Returns a vertical histogram (one histogram for each row) for the given frame
+cv::Mat FloorDetector::calc_v_histogram(cv::Mat &mat){
 	Mat v_histogram = Mat::zeros(mat.size().height, 256, CV_8UC1);
 	double depth;
 	for (int i = 0; i < mat.rows; ++i)
@@ -94,71 +113,104 @@ cv::Mat FloorDetector::calc_v_histogram(cv::Mat &mat){                          
 	return v_histogram;
 }
 
-void FloorDetector::enhance(cv::Mat &mat, int limit){                                           //Enhances the disparity map for better line detection
-	for (int i = 0; i < mat.rows; ++i)
+//Enhances the disparity map for better line detection
+void FloorDetector::enhance(cv::Mat &mat, int limit){
+    vector<bool> v(256,false);
+    for (int i = mat.rows-1; i >= 0 ; --i)
 	{
 		uchar* ptrOrig = mat.ptr<uchar>(i);
 		bool first = true;
 		for (int j = mat.cols; j >= 0; --j)
 		{
             uchar* pixel = ptrOrig + static_cast<uchar>(j);
-			if(*pixel > limit && first){                                                        //the pixel on each line with the largest value (longest
-                *pixel = 255;                                                                   //distance from camera) with a value larger than the
-                first = false;                                                                  //limit is colored white, all others black. In order to
-			} else {                                                                            //make the floor detection more accurate.
+			if(first && *pixel > limit){
+                if(v[j]){
+                    *pixel = 0;
+                } else {
+                    *pixel = 255;
+                    v[j] = true;
+                }
+                first = false;
+			} else {
                 *pixel = 0;
 			}
 		}
 	}
 }
 
-std::vector<std::pair<cv::Point,cv::Point>> FloorDetector::get_lines(const cv::Mat &mat){       //Line detection based on the HoughLines-algorithm
-    vector<Vec2f> lines;
-    vector<pair<Point,Point>> point_lines;
-
-	HoughLines(mat, lines, 1, CV_PI/180, 50, 0, 0);
-
-    for(size_t i = 0; i < lines.size(); ++i){
-        float rho = lines[i][0], theta = lines[i][1];                                           //Conversion from Polar coordinates to point-form
-		Point pt1, pt2;
-		double a = cos(theta), b = sin(theta);
-		double x0 = a*rho, y0 = b*rho;
-		pt1.x = cvRound(x0 + 1000*(-b));
-		pt1.y = cvRound(y0 + 1000*(a));
-		pt2.x = cvRound(x0 - 1000*(-b));
-		pt2.y = cvRound(y0 - 1000*(a));
-		point_lines.push_back({pt1,pt2});
-	}
-	return point_lines;
+vector<int> FloorDetector::floor_distances(cv::Mat &mat, int limit){
+    vector<int> floor;
+    for (int i = 0; i < mat.rows; ++i)
+    {
+        uchar* ptrOrig = mat.ptr<uchar>(i);
+        for (int j = mat.cols; j >= 0; --j)
+        {
+            uchar* pixel = ptrOrig + static_cast<uchar>(j);
+            if(*pixel > limit){
+                floor.push_back(j);
+                break;
+            }
+        }
+    }
+    return floor;
 }
 
-void FloorDetector::mark_lines(cv::Mat &mat, std::vector<std::pair<cv::Point,cv::Point>> &lines){
+//Line detection based on the HoughLines-algorithm
+void FloorDetector::set_floor(cv::Mat &mat){
+    vector<Vec2f> lines;
+    HoughLines(mat, lines, 1, CV_PI/180, 8, 0, 0);
+
     cvtColor(mat, mat, CV_GRAY2RGB);
+
     pair<Point,Point> floor_line;
     float min_cut = 0;
     float max_cut = mat.rows;
+
     for(auto it = lines.begin(); it != lines.end(); ++it){                                      //Iterate through the detected lines to find the one representing the floor
-        Point pt1 = (*it).first;
-        Point pt2 = (*it).second;
-        float k_val = -1.0;
-        float m_val = 0.0;
-        float delta_x = static_cast<float>(pt2.x - pt1.x);                                      //Calculations of k and m for the lines (y=kx+m)
-        float delta_y = static_cast<float>(pt2.y - pt1.y);
-        if(delta_x != 0){
-            k_val = delta_y/delta_x;
-            m_val = static_cast<float>(pt1.y) - k_val * static_cast<float>(pt1.x);
-            float cut = (256 * k_val + m_val);
-            if(cut > min_cut && cut < max_cut && k_val < 0){// && m > -hist.rows){                     //The line with the lowest histarity(longest distance from the camera)
-                floor_line = *it;                                                                       //at the bottom of the frame and positive k-value is the floor.
-                m = static_cast<int>(m_val);
-                k = k_val;
-                max_cut = cut;
-            }
-            line(mat, pt1, pt2, Scalar(0,255,0), 1, CV_AA);       //Mark all detected lines green
+        float rho = (*it)[0];
+        float theta = (*it)[1];
+
+        Point pt1, pt2;
+
+        double a = cos(theta), b = sin(theta);
+        double x0 = a*rho, y0 = b*rho;
+        pt1.x = cvRound(x0 + 1000*(-b));
+        pt1.y = cvRound(y0 + 1000*(a));
+        pt2.x = cvRound(x0 - 1000*(-b));
+        pt2.y = cvRound(y0 - 1000*(a));
+
+        float k_val = -a/b;
+        float m_val = rho/b;
+
+        float y_cut = mat.cols * k_val + m_val; //point where the line cuts the right side of the histogram
+        float x_cut = (mat.rows-m_val)/k_val;
+        if(y_cut > min_cut && y_cut < max_cut && x_cut > 0 && x_cut < mat.cols){// && m > -hist.rows){                     //The line with the lowest histarity(longest distance from the camera)
+            floor_line = make_pair(pt1,pt2);                                                                       //at the bottom of the frame and positive k-value is the floor.
+            m = m_val;
+            k = k_val;
+            min_cut = y_cut;
         }
+        line(mat, pt1, pt2, Scalar(0,255,0), 1, CV_AA);       //Mark all detected lines green
+
     }
 
-    Point pt1 = floor_line.first;
-    Point pt2 = floor_line.second;
-    line(mat, pt1, pt2, Scalar(255,0,0), 1, CV_AA);        //Mark the detected floor line blue
+    double y1 = 6*mat.rows/8;
+    double y2 = 7*mat.rows/8;
+    double x1 = (y1 - m) / k;
+    double x2 = (y2 - m) / k;
+
+    double tz1 = static_cast<double>(Utilities::distance(x1));
+    double ty1 = -2*Utilities::TAN224*tz1*(y1-static_cast<double>(mat.rows/2))/mat.rows;
+
+    double tz2 = static_cast<double>(Utilities::distance(x2));
+    double ty2 = -2*Utilities::TAN224*tz2*(y2-static_cast<double>(mat.rows/2))/mat.rows;
+
+    double ang = atan((ty2-ty1)/(tz2-tz1));
+
+    cos_x = cos(ang);
+    sin_x = sin(ang);
+    h = static_cast<int>(cos_x * ty1 - sin_x * tz1);
+
+
+    line(mat, floor_line.first, floor_line.second, Scalar(255,0,0), 1, CV_AA);        //Mark the detected floor line blue
 }

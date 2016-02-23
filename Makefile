@@ -24,11 +24,11 @@ PROGS = main background_subtraction
 all: $(PROGS)
 
 # Targets rely on implicit rules for compiling and linking
-main: floor_detector.o main.o visualizer.o
-	$(CXX) $(CXXFLAGS) floor_detector.o main.o visualizer.o -o main
+main: floor_detector.o main.o utilities.o foreground_extractor.o logger.o
+	$(CXX) $(CXXFLAGS) floor_detector.o main.o utilities.o logger.o foreground_extractor.o  -o main
 
-background_subtraction: floor_detector.o background_subtraction.o logger.o foreground_extractor.o
-	$(CXX) $(CXXFLAGS) floor_detector.o background_subtraction.o logger.o foreground_extractor.o -o background_subtraction
+background_subtraction: floor_detector.o background_subtraction.o logger.o foreground_extractor.o utilities.o
+	$(CXX) $(CXXFLAGS) floor_detector.o background_subtraction.o logger.o foreground_extractor.o utilities.o -o background_subtraction
 
 # Phony targets
 .PHONY: all clean

@@ -11,6 +11,7 @@ public:
     ~Logger();
     void write_int(int n);
     void write_line(int num, ...);
+    void write_doubles(int num, ...);
     void write_tab();
 private:
     std::ofstream out_file;

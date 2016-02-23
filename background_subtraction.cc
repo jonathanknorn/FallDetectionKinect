@@ -2,144 +2,182 @@
 #include "foreground_extractor.h"
 #include "logger.h"
 #include "time.h"
-
-using namespace cv;
-using namespace std;
+#include "utilities.h"
 
 int main()
 {
-    Mat frame; 		//Original frame
-    Mat fore; 		//Foreground mask
-    Mat back;		//Background mask
-    Mat resizeF;	//Resized original frame
-    Mat masked;		//Original frame masked by foreground frame
-    Mat hist;       //Histogram
-    Mat hist_copy;  //Copy of histogram
-    FloorDetector f;
+    //Original frame
+    cv::Mat frame;
+    
+    //Foreground mask
+    cv::Mat foreground_mask;
+    
+    //Background frame
+    cv::Mat background;
 
-    namedWindow("Background");
-
-    vector<vector<Point>> contours;
-
+    //Original frame with foreground mask applied
+    cv::Mat masked_frame;
+    
+    //Histogram, used for floor detection
+    cv::Mat histogram;
+    
+    //Initialization
+    FloorDetector fd;
     ForegroundExtractor fe;
 
-    VideoCapture cap(0); //Initialize camera
+    //Stores contours found in image
+    std::vector<std::vector<cv::Point>> contours;
+    
+    //Initialize camera
+    cv::VideoCapture cap(0);
 
+    //Initialize logger with current time
     char buff[20];
     time_t now = time(NULL);
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
-
-
     Logger l(buff);
-
-    clock_t frame_start, start;
-    start = clock();
-
-    for(int i = 0; i < 50; ++i){ //Capture initial 50 frames to build up the background image
+    
+    //Variables for fps-calculations
+    clock_t start, frame_start;
+    
+    //Build the original background image from the 50 first frames
+    for(int i = 0; i < 50; ++i){
+        frame_start = clock();
+        
+        //Capture and resize frame, wait is needed for
+        //frame to be fully read
         cap >> frame;
-        if(waitKey(30) >= 0) break;
-        resize(frame, frame, Size(frame.size().width/2, frame.size().height/2) );
-        f.normalize(frame);
-		fe.extract_foreground(frame, fore, 0.02);
-		fe.get_background_image(back);
-        imshow("Background",back);              //Display background
+
+        if(cv::waitKey(10) >= 0) break;
+        
+        cv::resize(frame, frame, cv::Size(frame.size().width/2, frame.size().height/2) );
+        
+        //Preprocess frame (changes "out of bounds"-values
+        //to work with the background subtraction)
+        fe.preprocess(frame);
+        
+        //Add the current frame to the background
+        //Frame makes 1/50th of the background (0.02)
+        fe.add_foreground(frame, foreground_mask, 0.02);
+        
+        //Get the background image for visualization
+        fe.get_background_image(background);
+        
+
+        //Display background
+        Utilities::show_mat("Background",background);
+
+        
+        //Display original frame
+        Utilities::show_mat("Frame",frame);
+
+        std::cout << "Frame " << i << "/50!\n";
+        std::cout << "Frame time: " << (clock() - frame_start)/1000 << "ms\n";
     }
-
-    namedWindow("Frame");                       //Initialize windows
-	namedWindow("Original mask");
-	namedWindow("Masked");
-    namedWindow("Histogram - original");
-    namedWindow("Histogram");
-
-    for(int ff = 0; true; ++ff) //Main loop, ff is for updates
+    
+    std::cout << "Done initializing!\n\n";
+    
+    
+    start = clock();
+    for(int frame_num = 0; true; ++frame_num) //Main loop, ff is for updates
     {
         frame_start = clock();
+        //Capture and resize frame, wait is needed for
+        //frame to be fully read
+        cap >> frame;
 
-        cap >> frame; //Save current frame and reduce it's size to 1/4th
+        if(cv::waitKey(10) >= 0) break;
+        
+        cv::resize(frame, frame, cv::Size(frame.size().width/2, frame.size().height/2) );
+        
+        //Preprocess frame (changes "out of bounds"-values
+        //to work with the background subtraction)
+        fe.preprocess(frame);
+        
+        //Update background each 100 frames
+        if (frame_num % 100 == 0){
+            //Background extraction is same as in set up
+            fe.add_foreground(frame, foreground_mask, 0.02);
+            
+            fe.get_background_image(background);
+            
+            //Calculate depth-histogram for each line in the background
+            histogram = fd.calc_v_histogram(background);
 
-        if(waitKey(30) >= 0) break;
+             //Enhance the histogram map for easier line detection
+            fd.enhance(histogram, 20);
 
-        resize(frame, frame, Size(frame.size().width/2, frame.size().height/2) );
+            //Detect lines in the histogram and set
+            //camera angle and height from detected floor line
+            fd.set_floor(histogram);
+            
+            //Update foreground extractor with values of camera angle and height
+            fe.setup_camera(fd.sin_x, fd.cos_x, fd.h);
 
-        hist = f.calc_v_histogram(frame);           //Map with a histogram for each line in the frame
-        f.enhance(hist, 20);                        //Enhances the histogram map for easier line detection
-        hist_copy = hist.clone();                   //Copy histogram to show it both with and without detected lines
-
-        f.normalize(frame);
-
-        if (ff % 100 == 0){                                 //Update background each 100 frames
-            fe.extract_foreground(frame, fore, 0.02);
-            fe.get_background_image(back);                  //Get background frame for visualisation
-            imshow("Background",back);
-        } else {                                            //Else just get foreground without updating background
-            fe.extract_foreground(frame, fore, 0.0);
+            fd.normalize(background);
+            fd.color(background, true);
+            
+        } else { //For the remaining 99/100 frames
+            //only extract foreground mask without updating background
+            fe.add_foreground(frame, foreground_mask, 0.0);
         }
 
-        Mat ffore = fore.clone();
-        fe.erode(ffore);
-        fe.dilate(ffore);
-        masked = Mat::zeros( frame.rows, frame.cols, CV_8UC3 );             //Create empty frame for mask
-        frame.copyTo(masked, ffore);                                        //Apply mask to original frame and copy to masked
+        //remove shadows etc in the mask
+        fe.enhance_mask(foreground_mask);
+        fe.erode(foreground_mask);
 
+        //initialize the masked frame as empty (black)
+        masked_frame = cv::Mat::zeros( frame.rows, frame.cols, CV_8UC3 );
+        
+        //Apply foreground mask to original frame and copy to masked frame
+        frame.copyTo(masked_frame, foreground_mask);
 
+        //Normalize the masked frame for accurate distance-readings
+        fd.normalize(masked_frame);
+        
+        //Normalize and color original frame,
+        //(for visualization only)
+        fd.normalize(frame);
+        fd.color(frame, true);
 
-        vector<pair<Point,Point>> lines = f.get_lines(hist);        //Vector with detected lines from the histogram
-        f.mark_lines(hist, lines);                                  //Draw lines in the histogram
+        //Find contours in the mask and
+        //mark them in the original frame
+        cv::findContours(foreground_mask.clone(),contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE); //.clone() just needed for visualization, since findContours modifies the image
+        cv::drawContours(frame, contours, -1, cv::Scalar(255,255,0));
+        //Contours with less than 150 points in the frame
+        //are considered noise or non-interesting
+        for(auto &v : contours){
+            if(v.size()>150){
+                //Get the bounding rect for the contour
+                cv::Rect brect = cv::boundingRect(cv::Mat(v).reshape(2));
+                
+                //Get the 3d-boundries of the object,
+                //mark it in the original frame and
+                //log the measurements in the log file.
 
-
-        f.color(frame);
-
-        findContours(ffore,contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE); //Find and draw contours
-        drawContours(frame, contours, -1, Scalar(255,0,0));
-
-        l.write_int(ff);
-        int contour_count = 0;
-        for(auto &v : contours){                //Mark larger objects with rectangles in original frame
-            float sinx = 0.9135;                //Sinus of 90-the angle of the camera
-            if(v.size()>150){                   //Objects with more than 150 points in their contour are detected as persons
-                Rect brect = boundingRect(Mat(v).reshape(2));           //Bounding rect for contour
-                int depth = fe.average_depth(masked, brect, 0.15);   //Depth is calculated on the top 15% of the detected body
-                int y = f.floorline_at_depth(depth);                   //Theoretical y-value of the floor at the given depth
-                rectangle(frame, brect.tl(), Point2f(brect.x+brect.width, y*sinx*sinx), Scalar(0,0,255),1,CV_AA); //Bounding rect with the bottom adjusted for the floor
-                circle(frame, Point2f(brect.x+brect.width/2, brect.y+(y*sinx*sinx-brect.y)/2), 4, Scalar(0,0,255),-1);  //Center of the bounding rect
-
-                double tan285 = 0.543;      //Tangens of the horizontal field of view (28.5)
-                double tan224 = 0.412;      //Tangens of the vertical field of view (22.4)
-
-                double bw = tan285 * static_cast<double>(depth)*1.96;   //Width of half the field of view at the given distance
-                double bh = tan224 * static_cast<double>(depth)*1.96;   //Height of the...
-
-                double wr = 2*bw*(brect.width+2)/frame.size().width;        //Object width = field width (in cm) * object pixel width / field pixel width
-                double hr = sinx * 2*bh*(2+y-brect.y)/frame.size().height; //Height same as width, but adjusted for camera tilt
-
-                cout << hr << " cm" << endl;        //Print object height
-
-                char str[200];                      //Display height and width in frame
-                sprintf(str,"W:%f",wr);
-                putText(frame, str, Point2f(brect.x, brect.y), FONT_HERSHEY_PLAIN, 0.8,  Scalar(0,0,255,255));
-                sprintf(str,"h:%f",hr);
-                putText(frame, str, Point2f(brect.x+brect.width, brect.y+brect.height/2), FONT_HERSHEY_PLAIN, 0.8,  Scalar(0,0,255,255));
-
-                if(contour_count != 0){
-                    l.write_tab();
-                }
-                l.write_line(3, contour_count, wr, hr);
-                ++contour_count;
+                fe.boundries3d(masked_frame, frame, brect, l);
             }
         }
-        if(contour_count == 0){
-            l.write_line(0);
-        }
 
-        imshow("Frame",frame);          //Original frame
-        imshow("Original mask",fore);   //Original mask
-        imshow("Masked",masked);        //Masked frame
-        imshow("Histogram - original", hist_copy);
-        imshow("Histogram", hist);      //Histlay frames
 
-        cout << "Frame time: " << (clock() - frame_start)/1000 << "ms" << endl;
-        cout << "Average fps: " <<  (ff*1000000.0)/(clock() - start) << endl << endl;
+        //Save current frame and log detected objects for data collection
+//        Utilities::save_frame(frame, "images", to_string(static_cast<int>(clock() - start)/1000));
+        l.write_line(1, (static_cast<double>(clock() - frame_start)/1000));
 
-	}
+        //Print fps-data
+        std::cout << "Frame time: " << (clock() - frame_start)/1000 << "ms\n";
+        std::cout << "Average fps: " <<  (frame_num*1000000.0)/(clock() - start) << "\n";
+        
+        fd.color(masked_frame, false);
+        
+        //Show frames
+        Utilities::show_mat("Frame",frame);
+        Utilities::show_mat("Background",background);
+        Utilities::show_mat("Foreground mask",foreground_mask);
+        Utilities::show_mat("Masked frame",masked_frame);
+        Utilities::show_mat("Histogram",histogram);
+        
+
+    }
     return 0;
 }
