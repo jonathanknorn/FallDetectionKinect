@@ -4,13 +4,25 @@ using namespace std;
 using namespace cv;
 
 //shows the mat in a window with the specified name
+//if a window with the specified name already exists,
+//the mat currently dispalyed is exchanged
 void Utilities::show_mat(String window_name, Mat &m) {
     imshow(window_name,m);
 }
 
-//saves the mat to a a file with specified name in the folder images
-void Utilities::save_frame(Mat &m, String name) {
-    String loc = "images/"+ name + ".jpg";
+//creates a folder with the specified name
+int Utilities::create_folder(const char *name) {
+    char command[128] = "mkdir ";
+    strncat (command, "\"", 2);
+    strncat (command, name, 25);
+    strncat (command, "\"", 2);
+    
+    return system(command);
+}
+
+//saves the mat to a a file with specified name in the specified folder
+void Utilities::save_frame(Mat &m, const string &folder, const string &name) {
+    String loc = folder + "/"+ name + ".jpg";
     imwrite(loc, m);
 }
 

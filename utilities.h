@@ -11,7 +11,8 @@ public:
     static int distance(int d);
     static int reversed_normalization(int d);
     static int normalize(int d);
-    static void save_frame(cv::Mat &, std::string);
+    static void save_frame(cv::Mat &, const std::string &, const std::string &);
+    static int create_folder(const char*);
     
     static const double TAN285;    //Tangens of the horizontal field of view (28.5 degrees)
     static const double TAN224;    //Tangens of the vertical field of view (22.4 degrees)
