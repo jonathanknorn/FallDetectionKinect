@@ -6,6 +6,9 @@
 
 int main()
 {
+    
+    bool show = true;
+    
     //Original frame
     cv::Mat frame;
 
@@ -30,13 +33,13 @@ int main()
 
     //Initialize camera
     cv::VideoCapture cap(0);
-    
+
     //Initialize logger with current time
     char buff[32];
     time_t now = time(NULL);
     strftime(buff, 21, "%Y-%m-%d %H:%M:%S", localtime(&now));
     Logger l(buff);
-    
+
     //Create folder for images
     char folder[40] = "images";
     strncat (folder, buff, 21);
@@ -95,8 +98,13 @@ int main()
         //frame to be fully read
         cap >> frame;
 
-        if(cv::waitKey(10) >= 0) break;
-
+        int key = cv::waitKey(10);
+        if(key == 27){
+            break;
+        } else if (key != -1){
+            show = !show;
+        }
+ 
         cv::resize(frame, frame, cv::Size(frame.size().width/2, frame.size().height/2) );
 
         //Preprocess frame (changes "out of bounds"-values
@@ -146,9 +154,10 @@ int main()
 
         //Normalize and color original frame,
         //(for visualization only)
-        fd.normalize(frame);
-        fd.color(frame, true);
-
+        if(show){
+            fd.normalize(frame);  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+            fd.color(frame, true); //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        }
         //Find contours in the mask and
         //mark them in the original frame
         cv::findContours(foreground_mask.clone(),contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE); //.clone() just needed for visualization, since findContours modifies the image
@@ -170,7 +179,7 @@ int main()
 
 
         //Save current frame and log detected objects for data collection
-        Utilities::save_frame(frame, folder, std::to_string(static_cast<int>(clock() - start)/1000));
+        //Utilities::save_frame(frame, folder, std::to_string(static_cast<int>(clock() - start)/1000));XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
         l.write_line(1, (static_cast<double>(clock() - frame_start)/1000));
 
@@ -178,16 +187,16 @@ int main()
         std::cout << "Frame time: " << (clock() - frame_start)/1000 << "ms\n";
         std::cout << "Average fps: " <<  (frame_num*1000000.0)/(clock() - start) << "\n";
 
+        if(show){
         fd.color(masked_frame, false);
 
         //Show frames
-        Utilities::show_mat("Frame",frame);
-        Utilities::show_mat("Background",background);
-        Utilities::show_mat("Foreground mask",foreground_mask);
-        Utilities::show_mat("Masked frame",masked_frame);
-        Utilities::show_mat("Histogram",histogram);
-
-
+            Utilities::show_mat("Frame",frame);
+            Utilities::show_mat("Background",background);
+            Utilities::show_mat("Foreground mask",foreground_mask);
+            Utilities::show_mat("Masked frame",masked_frame);
+            Utilities::show_mat("Histogram",histogram);
+        }
     }
     return 0;
 }

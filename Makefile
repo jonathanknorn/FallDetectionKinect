@@ -19,7 +19,7 @@ LDFLAGS =   -g
 #LDFLAGS +=  -stdlib=libc++
 
 # Targets
-PROGS = main background_subtraction
+PROGS = main background_subtraction main_threaded
 
 all: $(PROGS)
 
@@ -29,6 +29,9 @@ main: floor_detector.o main.o utilities.o foreground_extractor.o logger.o
 
 background_subtraction: floor_detector.o background_subtraction.o logger.o foreground_extractor.o utilities.o
 	$(CXX) $(CXXFLAGS) floor_detector.o background_subtraction.o logger.o foreground_extractor.o utilities.o -o background_subtraction
+
+main_threaded: floor_detector.o main_threaded.o utilities.o foreground_extractor.o logger.o spinning_barrier.o
+	$(CXX) $(CXXFLAGS) floor_detector.o main_threaded.o utilities.o logger.o foreground_extractor.o spinning_barrier.o -o main_threaded
 
 # Phony targets
 .PHONY: all clean
